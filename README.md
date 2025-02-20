@@ -1,6 +1,6 @@
 # Diário Autista
 
-![Logo](./src/assets/icon.png)
+![Logo](./src/assets/adaptive-icon.png)
 
 ## Descrição
 
