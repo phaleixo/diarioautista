@@ -2,7 +2,7 @@
   "expo": {
     "name": "Diario Autista",
     "slug": "diarioautista",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./src/assets/icon.png",
     "userInterfaceStyle": "light",
@@ -10,7 +10,7 @@
     "splash": {
       "image": "./src/assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#2424a4"
+      "backgroundColor": "#005187"
     },
     "ios": {
       "supportsTablet": true

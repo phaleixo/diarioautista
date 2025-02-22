@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, FlatList, useColorScheme, StyleSheet } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, TouchableOpacity, FlatList, useColorScheme, StyleSheet, Modal, Animated, Easing } from 'react-native';
 import { Audio } from 'expo-av';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from 'react-native-vector-icons/FontAwesome';
@@ -17,7 +17,14 @@ const AudioNoteScreen = () => {
   const [playingId, setPlayingId] = useState<number | null>(null);
   const [sound, setSound] = useState<Audio.Sound | null>(null);
   const [playbackStatus, setPlaybackStatus] = useState<{ [key: number]: { duration: number, position: number } }>({});
-  const colorScheme = useColorScheme();
+  const [isModalVisible, setIsModalVisible] = useState(false);
+  const [audioToDeleteId, setAudioToDeleteId] = useState<number | null>(null);
+  const [isRecording, setIsRecording] = useState(false); // Estado para controlar a mensagem de gravação
+  const theme = useColorScheme() || 'light'; // Detecta o tema atual (ou usa 'light' como padrão)
+  const styles = dynamicStyles(theme); // Aplica estilos dinâmicos
+
+  // Animação de pulsação
+  const pulseAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     loadAudioEntries();
@@ -36,6 +43,8 @@ const AudioNoteScreen = () => {
           Audio.RecordingOptionsPresets.HIGH_QUALITY
         );
         setRecording(recording);
+        setIsRecording(true); // Ativar mensagem e animação
+        startPulseAnimation(); // Iniciar animação
       } else {
         alert('Permissão para acessar o microfone é necessária.');
       }
@@ -60,7 +69,9 @@ const AudioNoteScreen = () => {
         setAudioEntries(updatedEntries);
         await AsyncStorage.setItem('audioNotes', JSON.stringify(updatedEntries));
       }
-      setRecording(null); // Move this to the end to avoid resetting state prematurely
+      setRecording(null);
+      setIsRecording(false); // Desativar mensagem e animação
+      stopPulseAnimation(); // Parar animação
     }
   };
 
@@ -75,17 +86,21 @@ const AudioNoteScreen = () => {
     const updatedEntries = audioEntries.filter(entry => entry.id !== id);
     setAudioEntries(updatedEntries);
     await AsyncStorage.setItem('audioNotes', JSON.stringify(updatedEntries));
+    setIsModalVisible(false);
+  };
+
+  const confirmDelete = (id: number) => {
+    setAudioToDeleteId(id);
+    setIsModalVisible(true);
   };
 
   const playPauseAudio = async (id: number, uri: string) => {
     if (playingId === id) {
-      // Pause the currently playing audio
       if (sound) {
         await sound.pauseAsync();
       }
       setPlayingId(null);
     } else {
-      // Play the selected audio
       if (sound) {
         await sound.unloadAsync();
       }
@@ -113,6 +128,32 @@ const AudioNoteScreen = () => {
     return `${minutes}:${seconds.length === 1 ? '0' : ''}${seconds}`;
   };
 
+  // Função para iniciar a animação de pulsação
+  const startPulseAnimation = () => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.2,
+          duration: 500,
+          easing: Easing.linear,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 500,
+          easing: Easing.linear,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  };
+
+  // Função para parar a animação de pulsação
+  const stopPulseAnimation = () => {
+    pulseAnim.stopAnimation();
+    pulseAnim.setValue(1); // Resetar o valor da animação
+  };
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Gravações de Áudio</Text>
@@ -128,20 +169,20 @@ const AudioNoteScreen = () => {
                 onPress={() => playPauseAudio(item.id, item.uri)}
                 style={styles.controlButton}
               >
-                <View style={styles.iconBackground}>
+                <View>
                   <Icon
                     name={playingId === item.id ? 'pause' : 'play'}
                     size={22}
-                    color={colorScheme === 'dark' ? 'white' : 'black'}
+                    color={theme === 'dark' ? '#FFFFFF' : '#000000'}
                   />
                 </View>
               </TouchableOpacity>
               <TouchableOpacity
-                onPress={() => deleteAudioEntry(item.id)}
+                onPress={() => confirmDelete(item.id)}
                 style={styles.controlButton}
               >
-                <View style={styles.iconBackground}>
-                  <Icon name="trash" size={22} color="red" />
+                <View>
+                  <Icon name="trash" size={20} color={theme === 'dark' ? '#FFFFFF' : '#333333'} />
                 </View>
               </TouchableOpacity>
             </View>
@@ -154,36 +195,79 @@ const AudioNoteScreen = () => {
         )}
       />
       <View style={{ flex: 1 }} />
+
+      {/* Mensagem de gravação */}
+      {isRecording && (
+        <View style={styles.recordingMessageContainer}>
+          <Text style={styles.recordingText}>Gravando...</Text>
+        </View>
+      )}
+
+      {/* Botão de Gravação Circular com Animação */}
       <TouchableOpacity
         onPress={recording ? stopRecording : startRecording}
-        style={[styles.recordButton, styles.commonButton, { backgroundColor: recording ? '#FF0000' : '#4CAF50' }]}
+        style={[
+          styles.recordButton,
+          { backgroundColor: recording ? '#FF0000' : '#72b288' },
+        ]}
       >
-        <Text style={styles.recordButtonText}>
-          {recording ? 'Parar Gravação' : 'Iniciar Gravação'}
-        </Text>
+        <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+          <Icon
+            name="microphone"
+            size={26}
+            color="white"
+          />
+        </Animated.View>
       </TouchableOpacity>
+
+      {/* Modal de Confirmação */}
+      <Modal
+        transparent={true}
+        visible={isModalVisible}
+        onRequestClose={() => setIsModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalText}>Tem certeza que deseja excluir este áudio?</Text>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonCancel]}
+                onPress={() => setIsModalVisible(false)}
+              >
+                <Text style={styles.modalButtonText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonConfirm]}
+                onPress={() => audioToDeleteId && deleteAudioEntry(audioToDeleteId)}
+              >
+                <Text style={styles.modalButtonText}>Excluir</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
 
-const styles = StyleSheet.create({
+// Função para gerar estilos dinâmicos
+const dynamicStyles = (theme: 'light' | 'dark') => StyleSheet.create({
   container: {
     flex: 1,
     padding: 20,
-    // Remover a cor de fundo
-    // backgroundColor: '#f0f8ff',
+    
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
     marginBottom: 10,
-    color: '#333',
+    color: theme === 'dark' ? '#FFFFFF' : '#333',
     textAlign: 'center',
   },
   subtitle: {
     fontSize: 18,
     marginVertical: 10,
-    color: '#333',
+    color: theme === 'dark' ? '#FFFFFF' : '#333',
     textAlign: 'center',
   },
   audioEntryContainer: {
@@ -192,7 +276,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 10,
     padding: 10,
-    backgroundColor: '#fff',
+    backgroundColor: theme === 'dark' ? '#1E1E1E' : '#FFFFFF',
     borderRadius: 10,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -203,7 +287,7 @@ const styles = StyleSheet.create({
   },
   dateText: {
     fontSize: 16,
-    color: '#333',
+    color: theme === 'dark' ? '#FFFFFF' : '#333',
   },
   audioControls: {
     flexDirection: 'row',
@@ -215,46 +299,77 @@ const styles = StyleSheet.create({
   controlButton: {
     padding: 10,
   },
-  iconBackground: {
-    backgroundColor: '#e0e0e0',
-    borderRadius: 25,
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 5,
-  },
   playbackText: {
     fontSize: 14,
-    color: 'gray',
+    color: theme === 'dark' ? '#CCCCCC' : '#666666',
     marginTop: 5,
   },
   recordButton: {
-    padding: 10,
-    borderRadius: 10,
+    width: 60,
+    height: 60,
+    borderRadius: 35,
+    justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 10,
+    position: 'absolute',
+    bottom: 20,
+    alignSelf: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.3,
     shadowRadius: 4,
-    elevation: 8,
-    margin: 5,
+    elevation: 5,
   },
-  recordButtonText: {
-    color: 'white',
-    fontSize: 18,
+  recordingMessageContainer: {
+    position: 'absolute',
+    bottom: 100,
+    alignSelf: 'center',
+    backgroundColor: theme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.7)',
+    padding: 10,
+    borderRadius: 5,
   },
-  commonButton: {
-    width: '100%',
-    padding: 15,
+  recordingText: {
+    color: theme === 'dark' ? '#FFFFFF' : '#000000',
+    fontSize: 16,
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: theme === 'dark' ? 'rgba(0, 0, 0, 0.8)' : 'rgba(0, 0, 0, 0.5)',
+  },
+  modalContent: {
+    width: '80%',
+    padding: 20,
+    backgroundColor: theme === 'dark' ? '#1E1E1E' : '#FFFFFF',
     borderRadius: 10,
     alignItems: 'center',
-    marginTop: 20,
+  },
+  modalText: {
+    fontSize: 18,
+    marginBottom: 20,
+    textAlign: 'center',
+    color: theme === 'dark' ? '#FFFFFF' : '#000000',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+  },
+  modalButton: {
+    padding: 10,
+    borderRadius: 5,
+    width: '45%',
+    alignItems: 'center',
+  },
+  modalButtonCancel: {
+    backgroundColor: theme === 'dark' ? '#333' : '#ccc',
+  },
+  modalButtonConfirm: {
+    backgroundColor: 'red',
+  },
+  modalButtonText: {
+    color: 'white',
+    fontSize: 16,
   },
 });
 

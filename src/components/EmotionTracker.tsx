@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, TextInput, FlatList, Modal, StyleSheet } from 'react-native';
+import { View, Text, TextInput, FlatList, Modal, StyleSheet, TouchableOpacity, useColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { FAB, Provider as PaperProvider } from 'react-native-paper';
+import Icon from 'react-native-vector-icons/FontAwesome';
 
 interface Entry {
   id: number;
@@ -24,6 +26,11 @@ const DiarioEmocoes: React.FC = () => {
   const [note, setNote] = useState<string>('');
   const [entries, setEntries] = useState<Entry[]>([]);
   const [modalVisible, setModalVisible] = useState<boolean>(false);
+  const [deleteModalVisible, setDeleteModalVisible] = useState<boolean>(false);
+  const [entryToDelete, setEntryToDelete] = useState<number | null>(null);
+
+  const isDarkMode = useColorScheme() === 'dark';
+  const styles = dynamicStyles(isDarkMode);
 
   useEffect(() => {
     loadEntries();
@@ -59,117 +66,256 @@ const DiarioEmocoes: React.FC = () => {
     }
   };
 
+  const confirmDelete = (id: number) => {
+    setEntryToDelete(id);
+    setDeleteModalVisible(true);
+  };
+
+  const deleteEntry = async () => {
+    if (entryToDelete !== null) {
+      const updatedEntries = entries.filter(entry => entry.id !== entryToDelete);
+      setEntries(updatedEntries);
+      await AsyncStorage.setItem('diario', JSON.stringify(updatedEntries));
+      setDeleteModalVisible(false);
+      setEntryToDelete(null);
+    }
+  };
+
   return (
-    <View style={{ padding: 20 }}>
-      <Text style={{ fontSize: 24, marginVertical: 5, fontWeight: 'bold', textAlign: 'center' }}>Diario</Text>
-      <Text style={{ fontSize: 18, marginVertical: 10, textAlign: 'center' }}>Histórico</Text>
-      <FlatList
-        data={entries}
-        keyExtractor={(item) => item.id.toString()}
-        renderItem={({ item }) => (
-          <View style={styles.entryCard}>
-            <Text style={{ fontSize: 24 }}>{item.emotion}</Text>
-            <Text>{item.date} às {item.time}</Text>
-            {item.note && <Text>{item.note}</Text>}
-          </View>
-        )}
-        showsVerticalScrollIndicator={true}
-        style={{ maxHeight: 480 }}
-      />
-
-      <TouchableOpacity onPress={() => setModalVisible(true)} style={[styles.button, styles.commonButton]}>
-        <Text style={styles.buttonText}>Como você está se sentindo hoje?</Text>
-      </TouchableOpacity>
-
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={modalVisible}
-        onRequestClose={() => setModalVisible(false)}
-      >
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <View style={{ width: 300, backgroundColor: 'white', padding: 20, borderRadius: 10 }}>
-            <Text style={{ fontSize: 20, fontWeight: 'bold', marginBottom: 20 }}>Como você está se sentindo hoje?</Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', marginVertical: 10 }}>
-              {EMOTIONS.map((emotion) => (
-                <TouchableOpacity
-                  key={emotion.emoji}
-                  onPress={() => setSelectedEmotion(emotion.emoji)}
-                  style={{
-                    margin: 5,
-                    alignItems: 'center',
-                    borderWidth: selectedEmotion === emotion.emoji ? 2 : 0,
-                    borderColor: selectedEmotion === emotion.emoji ? '#4CAF50' : 'transparent',
-                    borderRadius: 10,
-                    padding: 10,
-                    backgroundColor: 'white',
-                    shadowColor: '#000',
-                    shadowOffset: { width: 0, height: 2 },
-                    shadowOpacity: 0.25,
-                    shadowRadius: 3.84,
-                    elevation: 5
-                  }}
-                >
-                  <Text style={{ fontSize: 30 }}>{emotion.emoji}</Text>
-                  <Text>{emotion.name}</Text>
-                </TouchableOpacity>
-              ))}
+    <PaperProvider>
+      <View style={styles.container}>
+        <Text style={styles.headerText}>Diario</Text>
+        <Text style={styles.subHeaderText}>Histórico</Text>
+        <FlatList
+          data={entries}
+          keyExtractor={(item) => item.id.toString()}
+          renderItem={({ item }) => (
+            <View style={styles.entryCard}>
+              <Text style={styles.entryEmotion}>{item.emotion}</Text>
+              <Text style={styles.entryDate}>{item.date} às {item.time}</Text>
+              {item.note && <Text style={styles.entryNote}>{item.note}</Text>}
+              <TouchableOpacity onPress={() => confirmDelete(item.id)} style={styles.deleteButton}>
+                <Icon name="trash" size={20} color={isDarkMode ? '#FFFFFF' : 'gray'} />
+              </TouchableOpacity>
             </View>
-            <TextInput
-              placeholder="Adicione uma nota (opcional)"
-              value={note}
-              onChangeText={(text) => setNote(text)}
-              style={{ borderWidth: 1, padding: 10, borderRadius: 5, marginBottom: 10 }}
-            />
-            <TouchableOpacity onPress={saveEntry} style={{ backgroundColor: '#4CAF50', padding: 10, borderRadius: 5 }}>
-              <Text style={{ color: 'white', textAlign: 'center' }}>Salvar</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => setModalVisible(false)} style={{ marginTop: 10 }}>
-              <Text style={{ color: '#4CAF50', textAlign: 'center' }}>Cancelar</Text>
-            </TouchableOpacity>
+          )}
+          contentContainerStyle={{ flexGrow: 1 }}
+        />
+
+        <FAB
+          style={styles.fab}
+          icon="plus"
+          color="white"
+          onPress={() => setModalVisible(true)}
+        />
+
+        <Modal
+          animationType="slide"
+          transparent={true}
+          visible={modalVisible}
+          onRequestClose={() => setModalVisible(false)}
+        >
+          <View style={styles.modalContainer}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Como você está se sentindo hoje?</Text>
+              <View style={styles.emotionContainer}>
+                {EMOTIONS.map((emotion) => (
+                  <TouchableOpacity
+                    key={emotion.emoji}
+                    onPress={() => setSelectedEmotion(emotion.emoji)}
+                    style={[
+                      styles.emotionButton,
+                      selectedEmotion === emotion.emoji && styles.selectedEmotionButton
+                    ]}
+                  >
+                    <Text style={styles.emotionEmoji}>{emotion.emoji}</Text>
+                    <Text style={styles.emotionName}>{emotion.name}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <TextInput
+                placeholder="Adicione uma nota (opcional)"
+                placeholderTextColor={isDarkMode ? '#999' : '#CCC'}
+                value={note}
+                onChangeText={(text) => setNote(text)}
+                style={styles.input}
+              />
+              <TouchableOpacity onPress={saveEntry} style={styles.saveButton}>
+                <Text style={styles.saveButtonText}>Salvar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setModalVisible(false)} style={styles.cancelButton}>
+                <Text style={styles.cancelButtonText}>Cancelar</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
-      </Modal>
-    </View>
+        </Modal>
+
+        <Modal
+          animationType="slide"
+          transparent={true}
+          visible={deleteModalVisible}
+          onRequestClose={() => setDeleteModalVisible(false)}
+        >
+          <View style={styles.modalContainer}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Tem certeza que deseja excluir?</Text>
+              <TouchableOpacity onPress={deleteEntry} style={styles.deleteConfirmButton}>
+                <Text style={styles.deleteConfirmButtonText}>Excluir</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setDeleteModalVisible(false)} style={styles.cancelButton}>
+                <Text style={styles.cancelButtonText}>Cancelar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      </View>
+    </PaperProvider>
   );
 };
 
-const styles = StyleSheet.create({
-  entryCard: {
-    padding: 10,
+const dynamicStyles = (isDarkMode: boolean) => StyleSheet.create({
+  container: {
+    flex: 1,
+    padding: 20,
+    
+  },
+  headerText: {
+    fontSize: 24,
     marginVertical: 5,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    color: isDarkMode ? '#FFFFFF' : '#000000',
+  },
+  subHeaderText: {
+    fontSize: 18,
+    marginVertical: 10,
+    textAlign: 'center',
+    color: isDarkMode ? '#FFFFFF' : '#000000',
+  },
+  entryCard: {
+    padding: 20,
+    marginVertical: 10,
     borderRadius: 10,
-    backgroundColor: 'white',
+    backgroundColor: isDarkMode ? '#1E1E1E' : '#FFFFFF',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
+    shadowOpacity: 0.5,
     shadowRadius: 3.84,
     elevation: 8,
     margin: 5,
   },
-  button: {
-    backgroundColor: '#4CAF50',
-    padding: 15,
+  entryEmotion: {
+    fontSize: 24,
+    color: isDarkMode ? '#FFFFFF' : '#000000',
+  },
+  entryDate: {
+    color: isDarkMode ? '#FFFFFF' : '#000000',
+  },
+  entryNote: {
+    color: isDarkMode ? '#FFFFFF' : '#000000',
+  },
+  deleteButton: {
+    position: 'absolute',
+    padding: 20,
+    right: 10,
+    top: 10,
+  },
+  fab: {
+    position: 'absolute',
+    margin: 18,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#72b288',
+    borderRadius: 30,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.1)',
+  },
+  modalContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: isDarkMode ? 'rgba(0,0,0,0.8)' : 'rgba(0,0,0,0.5)',
+  },
+  modalContent: {
+    width: 300,
+    backgroundColor: isDarkMode ? '#1E1E1E' : '#FFFFFF',
+    padding: 20,
     borderRadius: 10,
-    marginTop: 20,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 20,
+    color: isDarkMode ? '#FFFFFF' : '#000000',
+  },
+  emotionContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    marginVertical: 10,
+  },
+  emotionButton: {
+    margin: 5,
+    alignItems: 'center',
+    borderWidth: 0,
+    borderColor: 'transparent',
+    borderRadius: 10,
+    padding: 10,
+    backgroundColor: isDarkMode ? '#333' : '#FFF',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
-    elevation: 5
+    elevation: 5,
   },
-  buttonText: {
+  selectedEmotionButton: {
+    borderWidth: 2,
+    borderColor: '#4CAF50',
+  },
+  emotionEmoji: {
+    fontSize: 30,
+  },
+  emotionName: {
+    color: isDarkMode ? '#FFFFFF' : '#000000',
+  },
+  input: {
+    borderWidth: 1,
+    padding: 10,
+    borderRadius: 5,
+    marginBottom: 10,
+    borderColor: isDarkMode ? '#333' : '#CCC',
+    color: isDarkMode ? '#FFFFFF' : '#000000',
+    backgroundColor: isDarkMode ? '#333' : '#FFF',
+  },
+  saveButton: {
+    backgroundColor: '#72b288',
+    padding: 10,
+    borderRadius: 5,
+  },
+  saveButtonText: {
     color: 'white',
     textAlign: 'center',
-    fontSize: 16,
-    fontWeight: 'bold'
   },
-  commonButton: {
-    width: '100%',
-    padding: 15,
-    borderRadius: 10,
-    alignItems: 'center',
-    marginTop: 20,
+  cancelButton: {
+    marginTop: 10,
+  },
+  cancelButtonText: {
+    color: '#4CAF50',
+    textAlign: 'center',
+  },
+  deleteConfirmButton: {
+    backgroundColor: 'red',
+    padding: 10,
+    borderRadius: 5,
+  },
+  deleteConfirmButtonText: {
+    color: 'white',
+    textAlign: 'center',
   },
 });
 

@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TextInput, TouchableOpacity, FlatList, Animated, Modal, StyleSheet } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, FlatList, Animated, Modal, StyleSheet, useColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from 'react-native-vector-icons/FontAwesome';
+import { FAB } from 'react-native-paper';
 
 interface Task {
   id: number;
@@ -15,7 +16,12 @@ const TaskList: React.FC = () => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [taskText, setTaskText] = useState<string>('');
   const [modalVisible, setModalVisible] = useState<boolean>(false);
+  const [confirmModalVisible, setConfirmModalVisible] = useState<boolean>(false);
+  const [taskToDelete, setTaskToDelete] = useState<number | null>(null);
   const animation = useRef(new Animated.Value(1)).current;
+
+  const isDarkMode = useColorScheme() === 'dark';
+  const styles = dynamicStyles(isDarkMode);
 
   useEffect(() => {
     loadTasks();
@@ -42,6 +48,18 @@ const TaskList: React.FC = () => {
     const updatedTasks = tasks.filter(task => task.id !== taskId);
     setTasks(updatedTasks);
     await AsyncStorage.setItem('tasks', JSON.stringify(updatedTasks));
+    setConfirmModalVisible(false);
+  };
+
+  const confirmDelete = (taskId: number) => {
+    setTaskToDelete(taskId);
+    setConfirmModalVisible(true);
+  };
+
+  const handleDelete = () => {
+    if (taskToDelete !== null) {
+      deleteTask(taskToDelete);
+    }
   };
 
   const toggleTaskCompletion = async (taskId: number) => {
@@ -96,16 +114,19 @@ const TaskList: React.FC = () => {
                   <Text style={styles.taskDate}>Concluído em: {item.completedAt}</Text>
                 )}
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => deleteTask(item.id)} style={styles.deleteButton}>
-                <Icon name="trash" size={20} color="red" />
+              <TouchableOpacity onPress={() => confirmDelete(item.id)} style={styles.deleteButton}>
+                <Icon name="trash" size={20} color={isDarkMode ? '#FFFFFF' : 'gray'} />
               </TouchableOpacity>
             </View>
           </Animated.View>
         )}
       />
-      <TouchableOpacity onPress={() => setModalVisible(true)} style={[styles.addButton, styles.commonButton]}>
-        <Text style={styles.addButtonText}>Adicionar</Text>
-      </TouchableOpacity>
+      <FAB
+        style={styles.fab}
+        icon="plus"
+        color="white"
+        onPress={() => setModalVisible(true)}
+      />
 
       <Modal
         animationType="slide"
@@ -120,6 +141,7 @@ const TaskList: React.FC = () => {
             <View style={styles.modalView}>
               <TextInput
                 placeholder="Adicionar nova tarefa"
+                placeholderTextColor={isDarkMode ? '#999' : '#CCC'}
                 value={taskText}
                 onChangeText={setTaskText}
                 style={styles.input}
@@ -134,22 +156,44 @@ const TaskList: React.FC = () => {
           </View>
         </View>
       </Modal>
+
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={confirmModalVisible}
+        onRequestClose={() => {
+          setConfirmModalVisible(!confirmModalVisible);
+        }}
+      >
+        <View style={styles.modalBackground}>
+          <View style={styles.centeredView}>
+            <View style={styles.modalView}>
+              <Text style={styles.confirmText}>Tem certeza que deseja excluir esta tarefa?</Text>
+              <TouchableOpacity onPress={handleDelete} style={styles.confirmButton}>
+                <Text style={styles.confirmButtonText}>Confirmar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setConfirmModalVisible(false)} style={styles.cancelButton}>
+                <Text style={styles.cancelButtonText}>Cancelar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
 
-const styles = StyleSheet.create({
+const dynamicStyles = (isDarkMode: boolean) => StyleSheet.create({
   container: {
     flex: 1,
     padding: 20,
-    // Remover a cor de fundo
-    // backgroundColor: '#f0f8ff',
+    
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
     marginBottom: 20,
-    color: '#333',
+    color: isDarkMode ? '#FFFFFF' : '#333',
     textAlign: 'center',
   },
   taskContainer: {
@@ -158,7 +202,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 10,
     padding: 10,
-    backgroundColor: '#fff',
+    backgroundColor: isDarkMode ? '#1E1E1E' : '#FFFFFF',
     borderRadius: 10,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -171,45 +215,45 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 10,
     borderRadius: 10,
-    backgroundColor: '#fff',
+    backgroundColor: isDarkMode ? '#1E1E1E' : '#FFFFFF',
   },
   completedTask: {
-    backgroundColor: '#d3d3d3',
+    backgroundColor: isDarkMode ? '#1E1E1E' : '#FFFFFF',
   },
   taskText: {
     fontSize: 18,
+    color: isDarkMode ? '#FFFFFF' : '#000000',
   },
   completedTaskText: {
     textDecorationLine: 'line-through',
-    color: '#888',
+    color: isDarkMode ? '#4CAF50' : 'green',
   },
   taskDate: {
     fontSize: 12,
-    color: 'gray',
+    color: isDarkMode ? '#999' : 'gray',
   },
   deleteButton: {
     marginLeft: 20,
     padding: 10,
   },
-  addButton: {
-    backgroundColor: '#4CAF50',
-    padding: 15,
-    borderRadius: 10,
-    alignItems: 'center',
-    marginTop: 20,
+  fab: {
+    position: 'absolute',
+    margin: 18,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#72b288',
+    borderRadius: 30,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  addButtonText: {
-    color: 'white',
-    fontSize: 18,
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.1)',
   },
   modalBackground: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: isDarkMode ? 'rgba(0, 0, 0, 0.8)' : 'rgba(0, 0, 0, 0.5)',
   },
   centeredView: {
     flex: 1,
@@ -218,13 +262,13 @@ const styles = StyleSheet.create({
   },
   modalView: {
     margin: 20,
-    backgroundColor: 'white',
+    backgroundColor: isDarkMode ? '#1E1E1E' : '#FFFFFF',
     borderRadius: 20,
     padding: 35,
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.50,
+    shadowOpacity: 0.5,
     shadowRadius: 6,
     elevation: 5,
     width: '80%',
@@ -236,10 +280,13 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     marginTop: 10,
     width: '100%',
+    backgroundColor: isDarkMode ? '#333' : '#FFFFFF',
+    borderColor: isDarkMode ? '#444' : '#CCC',
+    color: isDarkMode ? '#FFFFFF' : '#000000',
   },
   modalAddButton: {
-    backgroundColor: '#4CAF50',
-    padding: 15, 
+    backgroundColor: '#72b288',
+    padding: 15,
     borderRadius: 10,
     width: '100%',
     alignItems: 'center',
@@ -252,16 +299,34 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   modalCancelButtonText: {
-    color: 'red',
+    color: isDarkMode ? '#FF4444' : 'red',
     textAlign: 'center',
     fontSize: 16,
   },
-  commonButton: {
-    width: '100%',
+  confirmText: {
+    fontSize: 18,
+    marginBottom: 20,
+    textAlign: 'center',
+    color: isDarkMode ? '#FFFFFF' : '#000000',
+  },
+  confirmButton: {
+    backgroundColor: '#FF4444',
     padding: 15,
     borderRadius: 10,
+    width: '100%',
     alignItems: 'center',
-    marginTop: 20,
+  },
+  confirmButtonText: {
+    color: 'white',
+    fontSize: 18,
+  },
+  cancelButton: {
+    marginTop: 10,
+  },
+  cancelButtonText: {
+    color: isDarkMode ? '#4CAF50' : 'blue',
+    textAlign: 'center',
+    fontSize: 16,
   },
 });
 
