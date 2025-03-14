@@ -37,7 +37,7 @@ O **Diário Autista** é um aplicativo desenvolvido por um autista para ajudar o
 
 1. Clone o repositório:
     ```sh
-    git clone https://github.com/seu-usuario/diarioautista.git
+    git clone https://github.com/phaleixo/diarioautista.git
     cd diarioautista
     ```
 
